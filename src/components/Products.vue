@@ -1,7 +1,8 @@
 <template>
     <div>
-        <div class="text-right">
-            <button class="btn btn-primary mt-4" @click="openModal(true, {}, 'edited')">建立新產品</button>
+        <loading :active.sync="isLoading"></loading>
+        <div class="text-right mt-4">
+            <button class="btn btn-primary" @click="openModal(true, {}, 'edited')">建立新產品</button>
         </div>
         <table class="table mt-4">
             <thead>
@@ -31,6 +32,8 @@
                 
             </tbody>
         </table>
+        <!-- Pagination -->
+        <Pagination :pages='pagination' @emit="getProducts"></Pagination>
         <div class="modal fade" id="productModal" tabindex="-1" role="dialog"
         aria-labelledby="exampleModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
@@ -54,13 +57,14 @@
                         </div>
                         <div class="form-group">
                         <label for="customFile">或 上傳圖片
-                            <i class="fas fa-spinner fa-spin"></i>
+                            <!-- font awesome -->
+                            <font-awesome-icon icon="spinner" spin v-if="status.fileUploading"/>
                         </label>
                         <input type="file" id="customFile" class="form-control"
-                            ref="files">
+                            ref="files" @change="uploadFile()">
                         </div>
                         <img img="https://images.unsplash.com/photo-1483985988355-763728e1935b?ixlib=rb-0.3.5&ixid=eyJhcHBfaWQiOjEyMDd9&s=828346ed697837ce808cae68d3ddc3cf&auto=format&fit=crop&w=1350&q=80"
-                        class="img-fluid" alt="">
+                        class="img-fluid" alt="" :src="tempProduct.imageUrl">
                     </div>
                     <div class="col-sm-8">
                         <div class="form-group">
@@ -163,23 +167,35 @@
 
 <script>
 import $ from 'jquery';
+import Pagination from './Pagination';
 
 export default {
     data() {
         return {
             products: [],
             tempProduct: {},
-            isNew: false // 判斷為編輯或建立
+            pagination: {},
+            isNew: false, // 判斷為編輯或建立
+            isLoading: false, // 是否啟用 Loading 元件
+            status: {
+                fileUploading: false
+            }
         }
+    },
+    components: {
+        Pagination
     },
     methods: {
         // 產品列表網頁有新增、編輯、刪除產品的需求，每次更新產品都會需要重新呼叫產品列表
         // 所以才會在 methods 寫 getProducts，不直接將 getProducts 放在 created
-        getProducts() {
-            const getApi = `${process.env.APIPATH}/api/${process.env.COSTOMPATH}/admin/products`;
+        getProducts(page = 1) {
+            const getApi = `${process.env.APIPATH}/api/${process.env.COSTOMPATH}/admin/products?page=${page}`;
+            this.isLoading = true;
             this.$http.get(getApi, this.user).then((res) => {
                 console.log(res.data);
+                this.isLoading = false;
                 this.products = res.data.products;
+                this.pagination = res.data.pagination;
             });
         },
         updateProduct() {
@@ -206,7 +222,7 @@ export default {
         },
         deleteProduct() {
             const deleteApi = `${process.env.APIPATH}/api/${process.env.COSTOMPATH}/admin/product/${this.tempProduct.id}`;
-            this.$http.delete(deleteApi, {data:this.tempProduct}).then((res) => {
+            this.$http.delete(deleteApi).then((res) => {
                 console.log(res.data);
                 if(res.data.success) {
                     this.closeModal('deleted');
@@ -217,6 +233,39 @@ export default {
                     alert('刪除失敗');
                 }
             })
+        },
+        uploadFile() {
+            console.log(this);
+            this.status.fileUploading = true;
+            const file = this.$refs.files.files[0];
+            // 1. 先建立 FormData() 物件
+            const formData = new FormData();
+            const uploadApi = `${process.env.APIPATH}/api/${process.env.COSTOMPATH}/admin/upload`;
+
+            // 2. 追加新值到 FormData()
+            formData.append('file-to-upload', file);
+            // 3. 以 form-data 的形式打包上傳
+            this.$http.post(uploadApi, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            })
+            .then(res => {
+                // 4. 將回傳的 url，以 $set 的方式強制寫入 
+                console.log(res.data);
+                if(res.data.success) {
+                    // 這樣是無法雙向綁定的，tempProduct.imageUrl 沒有雙向綁定主要是因為一開始在 data 中沒有定義 imgUrl 屬性
+                    // 而在 Modal 的 HTML 的產品欄位標題中使用 v-model="tempProduct.title" 就是一個標準的雙向綁定用法
+
+                    // this.tempProduct.imageUrl = res.data.imageUrl
+                    this.$set(this.tempProduct, 'imageUrl', res.data.imageUrl);
+                    $('#customFile').val('');
+                }else {
+                    this.$bus.$emit('message:push', res.data.message, 'danger');
+                }
+                this.status.fileUploading = false;
+            });
+            
         },
         openModal(isNew, product, type) {
             if(isNew) {

@@ -3,13 +3,28 @@
 import Vue from 'vue';
 import axios from 'axios';
 import VueAxios from 'vue-axios';
+// Loading
+import Loading from 'vue-loading-overlay';
+import 'vue-loading-overlay/dist/vue-loading.css';
+// Fontawesome
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { fas } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+
+// Bootstrap
 import 'bootstrap';
 
 import App from './App';
 import router from './router';
+import './bus';
 
+library.add(fas);
 Vue.config.productionTip = false;
 Vue.use(VueAxios, axios);
+
+// 作為全域元件載入
+Vue.component('Loading', Loading);
+Vue.component("font-awesome-icon", FontAwesomeIcon);
 
 axios.defaults.withCredentials = true; // 前端 axios 請求附帶 Cookies 設定
 
